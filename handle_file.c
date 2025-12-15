@@ -1,7 +1,7 @@
 #include "RandW.h"
 
 int file_compress(HANDLE hfile_read, HANDLE hfile_write, huffman_code huffman_table[256]);
-int file_decompress(char *in_buffer, char *out_buffer, huffman_node* huffman_tree_root);
+int file_decompress(HANDLE hfile_read, HANDLE hfile_write, huffman_node* huffman_tree_root, unsigned long long original_size);
 int build_feq_table(HANDLE hfile, huffman_code table[256], unsigned long long* total_bytes);
 huffman_node* build_huffman_tree(huffman_code table[256]);
 void free_huffman_tree(huffman_node* root);
@@ -19,8 +19,14 @@ int handle_file(LPCWSTR file_name,INT8 mode){
     );
     if ( hfile_read == INVALID_HANDLE_VALUE ) return FILE_NOT_FOUND;
 
+    LPCWSTR out_file_name;
+    if (mode == COMPRESS){
+        out_file_name = L"compressed_file.huff";
+    } else {
+        out_file_name = L"decompressed_file.dat";
+    }
     HANDLE hfile_write = CreateFileW(
-        L"hanle file.dat",
+        out_file_name,
         GENERIC_WRITE,
         0,
         NULL,
@@ -50,7 +56,7 @@ int handle_file(LPCWSTR file_name,INT8 mode){
             free(huffman_table);
             CloseHandle(hfile_read);
             CloseHandle(hfile_write);
-            return FILE_ACCESS_ERROR;
+            return MEMORY_ALLOCATION_ERROR;
         }
 
         huffman_node* huffman_tree_root = build_huffman_tree(huffman_table);
@@ -83,11 +89,36 @@ int handle_file(LPCWSTR file_name,INT8 mode){
         int compress_result = file_compress(hfile_read, hfile_write, huffman_table);
         free_huffman_tree(huffman_tree_root);
         free(huffman_table);
+        if (compress_result != 0) {
+            CloseHandle(hfile_read);
+            CloseHandle(hfile_write);
+            return compress_result;
+        }
     }
 
     // -------------------------- Decompression Logic --------------------------
     else if (mode == DECOMPRESS) {
-        
+        struct huffman_file_header file_header;
+        if (!ReadFile(hfile_read, &file_header, sizeof(file_header), &bytes_read, NULL) || bytes_read != sizeof(file_header)) {
+            CloseHandle(hfile_read);
+            CloseHandle(hfile_write);
+            return FILE_BROKEN_ERROR;
+        }
+
+        huffman_node* huffman_tree_root = build_huffman_tree(file_header.huffman_table);
+        if (huffman_tree_root == NULL) {
+            CloseHandle(hfile_read);
+            CloseHandle(hfile_write);
+            return MEMORY_ALLOCATION_ERROR;
+        }
+
+        int decompress_result = file_decompress(hfile_read, hfile_write, huffman_tree_root, file_header.original_file_size);
+        free_huffman_tree(huffman_tree_root);
+        if (decompress_result != 0) {
+            CloseHandle(hfile_read);
+            CloseHandle(hfile_write);
+            return decompress_result;
+        }
     }
 
     CloseHandle(hfile_read);

@@ -8,7 +8,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     switch (uMsg)
     {
         case WM_COMMAND:
-            // Check which control sent the message
             if (LOWORD(wParam) == 2 && HIWORD(wParam) == BN_CLICKED) {
                 OPENFILENAME ofn;
                 wchar_t szFile[260] = {0};
@@ -20,6 +19,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 ofn.nMaxFile = sizeof(szFile) / sizeof(wchar_t);
                 ofn.lpstrFilter = L"All Files\0*.*\0";
                 ofn.nFilterIndex = 1;
+                ofn.lpstrInitialDir = NULL;
                 ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
                 if (GetOpenFileName(&ofn) == TRUE)
@@ -43,6 +43,39 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         MessageBox(hwnd, L"文件压缩成功!", L"成功", MB_OK);
                     } else {
                         MessageBox(hwnd, L"文件压缩失败!", L"错误", MB_ICONERROR | MB_OK);
+                    }
+                } else {
+                    MessageBox(hwnd, L"请先选择一个文件。", L"提示", MB_OK);
+                }
+            }
+            else if (LOWORD(wParam) == 5 && HIWORD(wParam) == BN_CLICKED) {
+                HWND hEdit = GetDlgItem(hwnd, 3);
+                wchar_t filePath[260];
+                GetWindowText(hEdit, filePath, 260);
+
+                if (wcslen(filePath) > 0) {
+                    wchar_t outFilePath[300];
+                    wcscpy(outFilePath, filePath);
+                    size_t len = wcslen(outFilePath);
+                    if (len > 5 && wcscmp(&outFilePath[len - 5], L".huff") == 0) {
+                        outFilePath[len - 5] = L'\0'; // Remove .huff extension
+                    } else {
+                        wcscat(outFilePath, L".dehuff");
+                    }
+
+                    int result = handle_file(filePath, DECOMPRESS);
+                    if (result == 0) {
+                        MessageBox(hwnd, L"文件解压成功!", L"成功", MB_OK);
+                    } else if (result == FILE_NOT_FOUND) {
+                        MessageBox(hwnd, L"文件未找到!", L"错误", MB_ICONERROR | MB_OK);
+                    } else if (result == FILE_ACCESS_ERROR) {
+                        MessageBox(hwnd, L"文件访问错误!", L"错误", MB_ICONERROR | MB_OK);
+                    } else if (result == MEMORY_ALLOCATION_ERROR) {
+                        MessageBox(hwnd, L"内存分配错误!", L"错误", MB_ICONERROR | MB_OK);
+                    } else if (result == FILE_BROKEN_ERROR) {
+                        MessageBox(hwnd, L"文件损坏，无法解压!", L"错误", MB_ICONERROR | MB_OK);
+                    } else {
+                        MessageBox(hwnd, L"文件解压失败!", L"错误", MB_ICONERROR | MB_OK);
                     }
                 } else {
                     MessageBox(hwnd, L"请先选择一个文件。", L"提示", MB_OK);
@@ -118,11 +151,23 @@ int WINAPI WinMain(HINSTANCE hInstance,
         NULL
     );
 
+    HWND decompressButton = CreateWindowEx(
+        0,
+        L"BUTTON",
+        L"解压",
+        WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+        100, 130, 90, 30,
+        hwnd,
+        (HMENU)5,
+        hInstance,
+        NULL
+    );
+
     HWND hEdit = CreateWindowEx(
         0, L"EDIT",
         L"",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_LEFT,
-        10, 90, 200, 30,
+        10, 90, 800, 30,
         hwnd,
         (HMENU)3, // Control ID
         hInstance,
@@ -141,6 +186,11 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
     if (compressButton == NULL) {
         MessageBox(NULL, L"Compress Button Creation Failed!", L"Error!", MB_ICONEXCLAMATION | MB_OK);
+        return 0;
+    }
+
+    if (decompressButton == NULL) {
+        MessageBox(NULL, L"Decompress Button Creation Failed!", L"Error!", MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
 

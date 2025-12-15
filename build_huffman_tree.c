@@ -20,7 +20,10 @@ int build_feq_table(HANDLE hfile, huffman_code table[256], unsigned long long* t
         total_bytes_local += bytes_read;
     } while (bytes_read > 0);
 
-    SetFilePointer(hfile, 0, NULL, FILE_BEGIN);
+    if (SetFilePointer(hfile, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
+        free(buffer);
+        return FILE_ACCESS_ERROR;
+    }
     *total_bytes = total_bytes_local;
     free(buffer);
     return 0;

@@ -2,19 +2,37 @@
 
 int file_compress(HANDLE hfile_read, HANDLE hfile_write, huffman_code huffman_table[256]) {
     UINT8* in_buffer = (UINT8*)malloc(BLOCK_SIZE);
+    if (!in_buffer) return MEMORY_ALLOCATION_ERROR;
     int in_buffer_flag = 0;
     int in_buffer_index = 0;
     UINT8* out_buffer = (UINT8*)malloc(BLOCK_SIZE * 2);
+    if (!out_buffer) {
+        free(in_buffer);
+        return MEMORY_ALLOCATION_ERROR;
+    }
     int out_buffer_flag = 0;
     int out_buffer_index = 0;
     DWORD bytes_read = 0;
     DWORD bytes_written = 0;
     UINT8* bit_buffer = (UINT8*)malloc(MAX_HUFFMAN_CODE_SIZE * 2 / BYTESIZE + 1);
+    if (!bit_buffer) {
+        free(in_buffer);
+        free(out_buffer);
+        return MEMORY_ALLOCATION_ERROR;
+    }
+    memset(bit_buffer, 0, MAX_HUFFMAN_CODE_SIZE * 2 / BYTESIZE + 1);
     int bit_buffer_flag = 0;
     int bit_buffer_index = 0;
     UINT64 bit_buffer_q = 0;
     int bit_buffer_q_flag = 0;
     int bit_buffer_q_index = 0;
+
+    if (SetFilePointer(hfile_read, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
+        free(in_buffer);
+        free(out_buffer);
+        free(bit_buffer);
+        return FILE_ACCESS_ERROR;
+    }
 
     for (;;) {
         while (bit_buffer_flag < 64) {
@@ -47,21 +65,19 @@ int file_compress(HANDLE hfile_read, HANDLE hfile_write, huffman_code huffman_ta
         }
 
         for (int i = 0; i < 8; i++) {
-            unsigned char byte = bit_buffer[bit_buffer_index / 8];
-            byte <<= bit_buffer_index % 8;
-            byte |= bit_buffer[(bit_buffer_index / 8) + 1] >> (8 - (bit_buffer_index % 8));
-            bit_buffer_q |= ((UINT64)byte) << (8 * (7 - i));
+            int current_index = bit_buffer_index + i * 8;
+            unsigned char byte = bit_buffer[current_index / 8];
+            byte <<= current_index % 8;
+            byte |= bit_buffer[(current_index / 8) + 1] >> (8 - (current_index % 8));
+            out_buffer[out_buffer_index++] = byte;
         }
         bit_buffer_index += 64;
         bit_buffer_flag -= 64;
-
-        *(UINT64*)(&out_buffer[out_buffer_index]) = bit_buffer_q;
-        out_buffer_index += 8;
         bit_buffer_q = 0;
         
         if (out_buffer_index >= BLOCK_SIZE) {
             if (!WriteFile(hfile_write, out_buffer, out_buffer_index, &bytes_written, NULL)) {
-                return FILE_ACCESS_ERROR;
+                return FILE_WRITE_ERROR;
             }
             out_buffer_index = 0;
         }
@@ -76,22 +92,21 @@ int file_compress(HANDLE hfile_read, HANDLE hfile_write, huffman_code huffman_ta
     }
 
     end:
-    for (int i = 0; i < 8; i++) {
-            unsigned char byte = bit_buffer[bit_buffer_index / 8];
-            byte <<= bit_buffer_index % 8;
-            byte |= bit_buffer[(bit_buffer_index / 8) + 1] >> (8 - (bit_buffer_index % 8));
-            bit_buffer_q |= ((UINT64)byte) << (8 * (7 - i));
+    int remaining_bits = bit_buffer_flag;
+    int remaining_bytes = (remaining_bits + 7) / 8;
+    for (int i = 0; i < remaining_bytes; i++) {
+            int current_index = bit_buffer_index + i * 8;
+            unsigned char byte = bit_buffer[current_index / 8];
+            byte <<= current_index % 8;
+            byte |= bit_buffer[(current_index / 8) + 1] >> (8 - (current_index % 8));
+            out_buffer[out_buffer_index++] = byte;
+    }
+    
+    if (out_buffer_index > 0) {
+        if (!WriteFile(hfile_write, out_buffer, out_buffer_index, &bytes_written, NULL)) {
+            return FILE_WRITE_ERROR;
         }
-    *(UINT64*)(&out_buffer[out_buffer_index]) = bit_buffer_q;
-    if (out_buffer_index >= BLOCK_SIZE) {
-            if (!WriteFile(hfile_write, out_buffer, out_buffer_index, &bytes_written, NULL)) {
-                return FILE_ACCESS_ERROR;
-            }
-            out_buffer_index = 0;
-        }
-    if (!WriteFile(hfile_write, out_buffer, out_buffer_index + (bit_buffer_flag + 7) / 8, &bytes_written, NULL)) {
-                return FILE_ACCESS_ERROR;
-        }
+    }
 
     free(in_buffer);
     free(out_buffer);
