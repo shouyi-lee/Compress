@@ -18,7 +18,7 @@ int file_decompress(HANDLE hfile_read, HANDLE hfile_write, huffman_node* huffman
     int in_buffer_index = 0;
     int out_buffer_size = 0;
     
-    int bit_index = 8; // Force read first byte
+    int bit_index = 8;
     UINT8 current_byte = 0;
 
     huffman_node* current_node = huffman_tree_root;
@@ -49,7 +49,7 @@ int file_decompress(HANDLE hfile_read, HANDLE hfile_write, huffman_node* huffman
                 if (!ReadFile(hfile_read, in_buffer, BLOCK_SIZE, &bytes_read, NULL)) {
                     return FILE_ACCESS_ERROR;
                 }
-                if (bytes_read == 0) break; // Should not happen if file is correct
+                if (bytes_read == 0) break;
                 in_buffer_size = bytes_read;
                 in_buffer_index = 0;
             }

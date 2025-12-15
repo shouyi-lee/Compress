@@ -58,7 +58,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     wcscpy(outFilePath, filePath);
                     size_t len = wcslen(outFilePath);
                     if (len > 5 && wcscmp(&outFilePath[len - 5], L".huff") == 0) {
-                        outFilePath[len - 5] = L'\0'; // Remove .huff extension
+                        outFilePath[len - 5] = L'\0';
                     } else {
                         wcscat(outFilePath, L".dehuff");
                     }
@@ -110,8 +110,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = L"MyWindowClass";
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);  // 添加这一行
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);  // 可选，设置背景颜色
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
     RegisterClass(&wc);
 
